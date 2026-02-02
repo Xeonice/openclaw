@@ -65,6 +65,17 @@ const QWEN_PORTAL_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+export const SPARK_BASE_URL = "https://spark-api-open.xf-yun.com/v2";
+export const SPARK_DEFAULT_MODEL_ID = "spark-x";
+const SPARK_DEFAULT_CONTEXT_WINDOW = 65536;
+const SPARK_DEFAULT_MAX_TOKENS = 65535;
+const SPARK_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 const OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1";
 const OLLAMA_API_BASE_URL = "http://127.0.0.1:11434";
 const OLLAMA_DEFAULT_CONTEXT_WINDOW = 128000;
@@ -133,6 +144,24 @@ function normalizeApiKeyConfig(value: string): string {
   const trimmed = value.trim();
   const match = /^\$\{([A-Z0-9_]+)\}$/.exec(trimmed);
   return match?.[1] ?? trimmed;
+}
+
+/**
+ * Normalize baseUrl to prevent double-slash issues.
+ * - Remove trailing slash
+ * - Collapse multiple consecutive slashes (except after protocol)
+ */
+function normalizeBaseUrl(url: string): string {
+  if (!url) {
+    return url;
+  }
+  // Remove trailing slash
+  let normalized = url.replace(/\/+$/, "");
+  // Collapse multiple consecutive slashes (but preserve protocol://)
+  normalized = normalized.replace(/(https?:\/\/)(.*)/, (_, protocol, rest) => {
+    return protocol + rest.replace(/\/+/g, "/");
+  });
+  return normalized;
 }
 
 function resolveEnvApiKeyVarName(provider: string): string | undefined {
@@ -219,6 +248,15 @@ export function normalizeProviders(params: {
         ...normalizedProvider,
         apiKey: normalizeApiKeyConfig(normalizedProvider.apiKey),
       };
+    }
+
+    // Normalize baseUrl to prevent double-slash issues
+    if (normalizedProvider.baseUrl) {
+      const normalizedUrl = normalizeBaseUrl(normalizedProvider.baseUrl);
+      if (normalizedUrl !== normalizedProvider.baseUrl) {
+        mutated = true;
+        normalizedProvider = { ...normalizedProvider, baseUrl: normalizedUrl };
+      }
     }
 
     // If a provider defines models, pi's ModelRegistry requires apiKey to be set.
@@ -376,6 +414,28 @@ export function buildXiaomiProvider(): ProviderConfig {
   };
 }
 
+export function buildSparkProvider(): ProviderConfig {
+  return {
+    baseUrl: SPARK_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: SPARK_DEFAULT_MODEL_ID,
+        name: "iFLYTEK Spark X1.5",
+        reasoning: true,
+        input: ["text"],
+        cost: SPARK_DEFAULT_COST,
+        contextWindow: SPARK_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: SPARK_DEFAULT_MAX_TOKENS,
+        compat: {
+          // Spark API does not support 'developer' role, use 'system' instead
+          supportsDeveloperRole: false,
+        },
+      },
+    ],
+  };
+}
+
 async function buildVeniceProvider(): Promise<ProviderConfig> {
   const models = await discoverVeniceModels();
   return {
@@ -451,6 +511,13 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "xiaomi", store: authStore });
   if (xiaomiKey) {
     providers.xiaomi = { ...buildXiaomiProvider(), apiKey: xiaomiKey };
+  }
+
+  const sparkKey =
+    resolveEnvApiKeyVarName("spark") ??
+    resolveApiKeyFromProfiles({ provider: "spark", store: authStore });
+  if (sparkKey) {
+    providers.spark = { ...buildSparkProvider(), apiKey: sparkKey };
   }
 
   // Ollama provider - only add if explicitly configured

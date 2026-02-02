@@ -21,6 +21,8 @@ import {
   applyOpencodeZenProviderConfig,
   applyOpenrouterConfig,
   applyOpenrouterProviderConfig,
+  applySparkConfig,
+  applySparkProviderConfig,
   applySyntheticConfig,
   applySyntheticProviderConfig,
   applyVeniceConfig,
@@ -33,6 +35,7 @@ import {
   KIMI_CODING_MODEL_REF,
   MOONSHOT_DEFAULT_MODEL_REF,
   OPENROUTER_DEFAULT_MODEL_REF,
+  SPARK_DEFAULT_MODEL_REF,
   SYNTHETIC_DEFAULT_MODEL_REF,
   VENICE_DEFAULT_MODEL_REF,
   VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
@@ -42,6 +45,7 @@ import {
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
+  setSparkApiKey,
   setSyntheticApiKey,
   setVeniceApiKey,
   setVercelAiGatewayApiKey,
@@ -90,6 +94,8 @@ export async function applyAuthChoiceApiProviders(
       authChoice = "zai-api-key";
     } else if (params.opts.tokenProvider === "xiaomi") {
       authChoice = "xiaomi-api-key";
+    } else if (params.opts.tokenProvider === "spark") {
+      authChoice = "spark-api-key";
     } else if (params.opts.tokenProvider === "synthetic") {
       authChoice = "synthetic-api-key";
     } else if (params.opts.tokenProvider === "venice") {
@@ -486,6 +492,54 @@ export async function applyAuthChoiceApiProviders(
         applyDefaultConfig: applyXiaomiConfig,
         applyProviderConfig: applyXiaomiProviderConfig,
         noteDefault: XIAOMI_DEFAULT_MODEL_REF,
+        noteAgentModel,
+        prompter: params.prompter,
+      });
+      nextConfig = applied.config;
+      agentModelOverride = applied.agentModelOverride ?? agentModelOverride;
+    }
+    return { config: nextConfig, agentModelOverride };
+  }
+
+  if (authChoice === "spark-api-key") {
+    let hasCredential = false;
+
+    if (!hasCredential && params.opts?.token && params.opts?.tokenProvider === "spark") {
+      await setSparkApiKey(normalizeApiKeyInput(params.opts.token), params.agentDir);
+      hasCredential = true;
+    }
+
+    const envKey = resolveEnvApiKey("spark");
+    if (envKey) {
+      const useExisting = await params.prompter.confirm({
+        message: `Use existing SPARK_API_KEY (API password) (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
+        initialValue: true,
+      });
+      if (useExisting) {
+        await setSparkApiKey(envKey.apiKey, params.agentDir);
+        hasCredential = true;
+      }
+    }
+    if (!hasCredential) {
+      const key = await params.prompter.text({
+        message: "Enter iFLYTEK Spark API password",
+        validate: validateApiKeyInput,
+      });
+      await setSparkApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "spark:default",
+      provider: "spark",
+      mode: "api_key",
+    });
+    {
+      const applied = await applyDefaultModelChoice({
+        config: nextConfig,
+        setDefaultModel: params.setDefaultModel,
+        defaultModel: SPARK_DEFAULT_MODEL_REF,
+        applyDefaultConfig: applySparkConfig,
+        applyProviderConfig: applySparkProviderConfig,
+        noteDefault: SPARK_DEFAULT_MODEL_REF,
         noteAgentModel,
         prompter: params.prompter,
       });

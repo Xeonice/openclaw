@@ -17,6 +17,7 @@ export type AuthChoiceGroupId =
   | "moonshot"
   | "zai"
   | "xiaomi"
+  | "spark"
   | "opencode-zen"
   | "minimax"
   | "synthetic"
@@ -109,6 +110,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["xiaomi-api-key"],
   },
   {
+    value: "spark",
+    label: "iFLYTEK Spark",
+    hint: "API password",
+    choices: ["spark-api-key"],
+  },
+  {
     value: "synthetic",
     label: "Synthetic",
     hint: "Anthropic-compatible (multi-model)",
@@ -174,6 +181,11 @@ export function buildAuthChoiceOptions(params: {
   options.push({
     value: "xiaomi-api-key",
     label: "Xiaomi API key",
+  });
+  options.push({
+    value: "spark-api-key",
+    label: "iFLYTEK Spark API password",
+    hint: "Spark X1.5 reasoning model",
   });
   options.push({
     value: "minimax-portal",
